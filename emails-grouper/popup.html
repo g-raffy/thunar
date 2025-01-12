@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 200px;
+      padding: 10px;
+    }
+    label, input {
+      margin-bottom: 10px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h3>Move Emails</h3>
+  <form id="move-form">
+    <label for="start-date">Start Date:</label>
+    <input type="date" id="start-date" required>
+    
+    <label for="end-date">End Date:</label>
+    <input type="date" id="end-date" required>
+
+    <button type="submit">Move Emails</button>
+  </form>
+  <div id="status"></div>
+  <script src="dist/popup.js"></script>
+</body>
+</html>
