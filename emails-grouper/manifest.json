@@ -11,7 +11,8 @@
 	},
 	"permissions": [
 		"messagesRead",
-		"accountsRead",
+		"accountsRead",  
+		"accountsFolders",
 		"storage"
 	],
 	"background": {

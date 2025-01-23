@@ -2,13 +2,13 @@ document.getElementById("move-form")?.addEventListener("submit", async function 
 	console.log("on move-form submit: start")
 	event.preventDefault();
 
-	// const startDate = document.getElementById("start-date").value;
-	// const endDate = document.getElementById("end-date").value;
-	const startDate = "2022-02-22"
-	const endDate   = "2022-02-23"
-	console.log("startDate = " + startDate)
+	// const startDateString = document.getElementById("start-date").value;
+	// const endDateString = document.getElementById("end-date").value;
+	const startDateString = "2022-02-22"
+	const endDateString   = "2022-02-23"
+	console.log("startDate = " + startDateString)
 
-	// if (!startDate || !endDate) {
+	// if (!startDateString || !endDateString) {
 	// 	document.getElementById("status").innerText = "Please select a date range.";
 	// 	return;
 	// }
@@ -18,8 +18,8 @@ document.getElementById("move-form")?.addEventListener("submit", async function 
 	// Send the date range to the background script
 	let response = await browser.runtime.sendMessage({
 		action: "moveEmails",
-		startDate: startDate,
-		endDate: endDate
+		startDate: startDateString,
+		endDate: endDateString
 	});
 	console.log("on move-form submit: moveEmails completed")
 

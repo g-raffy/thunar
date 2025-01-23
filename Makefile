@@ -7,8 +7,8 @@ add_ons_dir := ${ROOT_DIR}
 
 all: emails-grouper.zip
 
-emails-grouper.zip: emails-grouper/dist/* emails-grouper/manifest.json
-	echo toto${add_ons_dir} && cd emails-grouper && zip -r $(add_ons_dir)/emails-grouper.zip . --exclude src/\* --exclude node_modules/\*
+emails-grouper.zip: emails-grouper/dist/.last_tsc_run emails-grouper/manifest.json 
+	echo "add_ons_dir = ${add_ons_dir}" && cd emails-grouper && zip -r $(add_ons_dir)/emails-grouper.zip . --exclude src/\* --exclude node_modules/\*
 
 emails-grouper/dist/.last_tsc_run: emails-grouper/src/*.ts
 	cd emails-grouper && npx tsc
