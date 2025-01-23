@@ -1,18 +1,18 @@
-// Helper function to convert date string (YYYY-MM-DD) to a timestamp
-function dateStringToDate(dateString: string): Date
-{
-	return new Date(dateString);
-}
 
-// Helper function to convert date string (YYYY-MM-DD) to a timestamp
-function toTimestamp(dateString: string): number {
-	return new Date(dateString).getTime();
-}
-
-// Helper function to convert date string (YYYY-MM-DD) to a year number, eg 2024
-function dateStringToYear(dateString: string): number
+class MailFolderPath
 {
-	return new Date(dateString).getFullYear();
+	pathParts: string[];  // eg ["LocalFolders", "arch", "test"]. The first part is expected to be the name of a browser.accounts.MailAccount (eg "guillaume.raffy@univ-rennes1.fr" or "Local Folders"), while the others are expected to be the name of a browser.folders.MailFolder
+
+	constructor(pathParts: string[])
+	{
+		this.pathParts = pathParts
+	}
+
+	getPathParts(): string[]
+	{
+		return this.pathParts;
+	}
+	
 }
 
 async function getSubMailFolder(rootFolder: browser.folders.MailFolder, subPath: string[], createMissingFolders: boolean = false): Promise<browser.folders.MailFolder | null>
@@ -58,11 +58,11 @@ async function getSubMailFolder(rootFolder: browser.folders.MailFolder, subPath:
 	}
 }
 
-async function getMailFolder(mailFolderAbsPath: string[], createMissingFolders: boolean = false): Promise<browser.folders.MailFolder | null>
+async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFolders: boolean = false): Promise<browser.folders.MailFolder | null>
 {
 	console.log("getMailFolder: mailFolderAbsPath = ", mailFolderAbsPath)
 	// mailFolderAbsPath: eg ["guillaume.raffy.work@gmail.com", "Inbox"]
-	let subPathParts: string[] = [...mailFolderAbsPath]
+	let subPathParts: string[] = [...mailFolderAbsPath.getPathParts()]
 	let mailAccountName = subPathParts.shift();  // eg "guillaume.raffy.work@gmail.com"
 	let mailFolder: browser.folders.MailFolder | null = null;
 	let mailAccounts: browser.accounts.MailAccount[] = await browser.accounts.list();
@@ -118,7 +118,7 @@ async function getMailFolder(mailFolderAbsPath: string[], createMissingFolders: 
 	return mailFolder;
 }
 
-async function ensureMailFolderExists(mailFolderPath: string[]): Promise<browser.folders.MailFolder>
+async function ensureMailFolderExists(mailFolderPath: MailFolderPath): Promise<browser.folders.MailFolder>
 {
 	let mailFolder: browser.folders.MailFolder
 	// mailFolderPath example:  ["Local Folders", "arch", "2024", "guillaume.raffy@univ-rennes1.fr"]
@@ -135,21 +135,21 @@ async function getMailFolderAccount(mailFolder: browser.folders.MailFolder): Pro
 }
 
 
-async function getMailFolderAbsName(mailFolder: browser.folders.MailFolder): Promise<string[]>
+async function getMailFolderAbsName(mailFolder: browser.folders.MailFolder): Promise<MailFolderPath>
 {
-	let folderAbsoluteName: string[] = []
+	let folderAbsoluteName: MailFolderPath = new MailFolderPath([])
 	// gets ['guillaume.raffy@univ-rennes1.fr', 'Inbox'] for the mail folder 'Inbox' in the the mail account 'guillaume.raffy@univ-rennes1.fr'
 
 	const parentsPaths: browser.folders.MailFolder[] = (await browser.folders.getParentFolders(mailFolder)).reverse()
 	const mailAccount: browser.accounts.MailAccount  = await getMailFolderAccount(mailFolder)
 
-	folderAbsoluteName.push(mailAccount.name)
+	folderAbsoluteName.pathParts.push(mailAccount.name)
 	for(let pathPart of parentsPaths)
 	{
-		folderAbsoluteName.push(pathPart.name as string);
+		folderAbsoluteName.pathParts.push(pathPart.name as string);
 	}
 
-	folderAbsoluteName.push(mailFolder.name as string);
+	folderAbsoluteName.pathParts.push(mailFolder.name as string);
 
 	return folderAbsoluteName
 }
@@ -157,9 +157,9 @@ async function getMailFolderAbsName(mailFolder: browser.folders.MailFolder): Pro
 
 class EmailsGrouper
 {
-	archiveRootFolderPath: string[];  // eg ["LocalFolders", "arch", "test"]
+	archiveRootFolderPath: MailFolderPath;  // eg ["LocalFolders", "arch", "test"]
 
-	constructor(archiveRootFolderPath: string[])
+	constructor(archiveRootFolderPath: MailFolderPath)
 	{
 		this.archiveRootFolderPath = archiveRootFolderPath
 	}
@@ -182,12 +182,12 @@ class EmailsGrouper
 		console.log('ensureArchiveFolderExists: archiveRootFolder.path = ' + archiveRootFolder.path)
 		console.log('ensureArchiveFolderExists: year = ' + year)
 
-		const srcFolderAbsName: string[] = await getMailFolderAbsName(srcFolder);  // eg [ "guillaume.raffy@univ-rennes1.fr", "Inbox"]
-		let archivePath: string[] = await getMailFolderAbsName(archiveRootFolder);  // eg [ "Local Folders", "arch", "test"]
-		archivePath.push(year.toString());
-		for (let pathPart of srcFolderAbsName)
+		const srcFolderAbsName: MailFolderPath = await getMailFolderAbsName(srcFolder);  // eg [ "guillaume.raffy@univ-rennes1.fr", "Inbox"]
+		let archivePath: MailFolderPath = await getMailFolderAbsName(archiveRootFolder);  // eg [ "Local Folders", "arch", "test"]
+		archivePath.pathParts.push(year.toString());
+		for (let pathPart of srcFolderAbsName.pathParts)
 		{
-			archivePath.push(pathPart);
+			archivePath.pathParts.push(pathPart);
 		}
 
 		// at this point, archivePath should look like [ "Local Folders", "arch", "test", "2022", "guillaume.raffy@univ-rennes1.fr", "Inbox"]
@@ -356,40 +356,6 @@ class EmailsGrouper
 		// on move-form submit: moveEmails completed popup.js:24:10
 		// on move-form submit: end popup.js:32:10
 		
-		return { success: false };
-
-		// if (!sourceFolder || !targetFolder) {
-		// 	console.error("Source or target folder not found.");
-		// 	return { success: false };
-		// }
-
-		// let messages = await browser.messages.list(sourceFolder);
-
-		// if (messages.messages.length === 0) {
-		// 	console.log("No messages to move.");
-		// 	return { success: false };
-		// }
-
-		// // Convert the date range to timestamps
-		// let startTimestamp = toTimestamp(startDate);
-		// let endTimestamp = toTimestamp(endDate);
-
-		// // Filter messages by date range
-		// let messagesToMove = messages.messages.filter(msg => {
-		// 	let messageDate = new Date(msg.date).getTime();
-		// 	return messageDate >= startTimestamp && messageDate <= endTimestamp;
-		// });
-
-		// if (messagesToMove.length === 0) {
-		// 	console.log("No messages found in the specified date range.");
-		// 	return { success: false };
-		// }
-
-		// // Move the filtered messages to the target folder
-		// let messageIds = messagesToMove.map(msg => msg.id);
-		// await browser.messages.move(messageIds, targetFolder);
-
-		console.log("Messages moved successfully.");
 		return { success: true };
 	}
 
@@ -402,17 +368,17 @@ browser.runtime.onMessage.addListener(async (request) => {
 		const testMode = true;
 		if (testMode)
 		{
-			let mailFolderPath = [
+			let mailFolderPath = new MailFolderPath([
 				"Local Folders",
 				"arch",
 				"test",
 				"toto"
-			]
+			]);
 			let mailFolder = await getMailFolder(mailFolderPath, true);
 		}
 		else
 		{
-			let emailsGrouper = new EmailsGrouper(["Local Folders", "arch", "test"]);
+			let emailsGrouper = new EmailsGrouper(new MailFolderPath(["Local Folders", "arch", "test"]));
 			const startDate : Date = new Date(request.startDate)
 			const endDate : Date = new Date(request.endDate)
 			return await emailsGrouper.moveEmails(startDate, endDate);
