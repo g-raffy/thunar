@@ -21,8 +21,17 @@
     <label for="end-date">End Date:</label>
     <input type="date" id="end-date" required>
 
+    <label>Dry Run:</label>
+    <input type="checkbox" id="dry-run" checked="true" required>
+
     <button type="submit">Move Emails</button>
   </form>
+  <div id="prout2">
+    <table id="prout">
+      <th><td>from</td><td>to</td><td>number of messages to move</td></th>
+    </table>
+    <div id="prout3">
+    </div>
   <div id="status"></div>
   <script src="dist/popup.js"></script>
 </body>

@@ -12,14 +12,45 @@ class MailFolderPath
 	{
 		return this.pathParts;
 	}
+
+	asIdString(): string
+	{
+		return this.pathParts.join("/");
+	}
 	
 }
+
+class MailFolder
+{
+	mailFolderPath: MailFolderPath
+	thunMailFolder: browser.folders.MailFolder  // thunderbird mail folder
+
+	constructor(mailFolderPath: MailFolderPath, thunMailFolder: browser.folders.MailFolder)
+	{
+		this.mailFolderPath = mailFolderPath
+		this.thunMailFolder = thunMailFolder
+	}
+}
+
+class MailMoveHandler
+{
+	constructor()
+	{
+	}
+
+	onMailFolderMove(srcFolder: browser.folders.MailFolder, numMessagesMoved: number)
+	{
+		browser.runtime.sendMessage({ type:"mail-folder-processed", srcFolder: srcFolder.path, dstFolder: "", numMailsMoved: numMessagesMoved });
+	}
+}
+
 
 async function getSubMailFolder(rootFolder: browser.folders.MailFolder, subPath: string[], createMissingFolders: boolean = false): Promise<browser.folders.MailFolder | null>
 {
 	console.log("getSubMailFolder: searching ", subPath, " in ", rootFolder.name, "subfolders")
 	if (subPath.length === 0)
 	{
+		console.log("getSubMailFolder: rootFolder.path = ", rootFolder.path)
 		return rootFolder;
 	}
 	else
@@ -54,6 +85,7 @@ async function getSubMailFolder(rootFolder: browser.folders.MailFolder, subPath:
 		{
 			subMailFolder = await getSubMailFolder(subMailFolder, subPath, createMissingFolders);
 		}
+		console.log("getSubMailFolder: subMailFolder.path = ", subMailFolder?.path)
 		return subMailFolder
 	}
 }
@@ -115,6 +147,7 @@ async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFol
 			mailFolder = await getSubMailFolder(targetFolder, subPathParts, createMissingFolders);
 		}
 	}
+	console.log("getMailFolder: mailFolder.path = ", mailFolder?.path)
 	return mailFolder;
 }
 
@@ -158,10 +191,13 @@ async function getMailFolderAbsName(mailFolder: browser.folders.MailFolder): Pro
 class EmailsGrouper
 {
 	archiveRootFolderPath: MailFolderPath;  // eg ["LocalFolders", "arch", "test"]
+	mailMoveHandler: MailMoveHandler;
 
-	constructor(archiveRootFolderPath: MailFolderPath)
+
+	constructor(archiveRootFolderPath: MailFolderPath, mailMoveHandler: MailMoveHandler)
 	{
-		this.archiveRootFolderPath = archiveRootFolderPath
+		this.archiveRootFolderPath = archiveRootFolderPath;
+		this.mailMoveHandler = mailMoveHandler;
 	}
 
 	async getArchiveRootFolder(): Promise<browser.folders.MailFolder>
@@ -202,7 +238,7 @@ class EmailsGrouper
 		return archiveFolder
 	}
 
-	async processFolder(srcFolder: browser.folders.MailFolder, archiveRootFolder: browser.folders.MailFolder, startDate: Date, endDate: Date)
+	async processFolder(srcFolder: browser.folders.MailFolder, archiveRootFolder: browser.folders.MailFolder, startDate: Date, endDate: Date, dryRun: boolean)
 	{
 		console.log("processFolder: moving ", srcFolder.path, "'s messages")
 
@@ -237,16 +273,18 @@ class EmailsGrouper
 			const targetFolder = await EmailsGrouper.ensureArchiveFolderExists(srcFolder, archiveRootFolder, archiveYear)
 			// Move the filtered messages to the target folder
 			let messageIds = messagesToMove.map(msg => msg.id);
-			const testModeIsOn = true;
-			if (testModeIsOn)
+			if (dryRun)
 			{
 				console.log('would move messages ' + messageIds + ' to folder ' + targetFolder.path)
 			}
 			else
 			{
+				console.log('moving messages ' + messageIds + ' to folder ' + targetFolder.path)
 				// await browser.messages.move(messageIds, targetFolder);
 			}
 		}
+
+		this.mailMoveHandler.onMailFolderMove(srcFolder, messagesToMove.length)
 
 		console.log("processing", srcFolder.path, "'s subfolders")
 
@@ -259,16 +297,17 @@ class EmailsGrouper
 				if (subFolder.path !== archiveRootFolder.path)
 				{
 					console.log("processing subFolder.path " + subFolder.path + " != " + archiveRootFolder.path)
-					this.processFolder(subFolder, archiveRootFolder, startDate, endDate);
+					this.processFolder(subFolder, archiveRootFolder, startDate, endDate, dryRun);
 				}
 			}
 		}
 	}
 
 	// Function to move emails within the specified date range
-	async moveEmails(startDate: Date, endDate: Date)
+	async moveEmails(startDate: Date, endDate: Date, dryRun: boolean)
 	{
 		const archiveRootFolder: browser.folders.MailFolder = await this.getArchiveRootFolder()
+		console.log("archiveRootFolder.path = " + archiveRootFolder.path);
 
 		const archivable_email_accounts = [
 			"guillaume.raffy@univ-rennes1.fr",
@@ -300,10 +339,10 @@ class EmailsGrouper
 						console.log("folder.name = " + folder.name);
 						if (folder.path !== archiveRootFolder.path)
 						{
-							await this.processFolder(folder, archiveRootFolder, startDate, endDate)
+							await this.processFolder(folder, archiveRootFolder, startDate, endDate, dryRun)
 						}
 					}
-					throw Error('debug stop 3');
+					// throw Error('debug stop 3');
 				}
 		
 			}
@@ -365,7 +404,7 @@ class EmailsGrouper
 // Listen for messages from the popup
 browser.runtime.onMessage.addListener(async (request) => {
 	if (request.action === "moveEmails") {
-		const testMode = true;
+		const testMode = false;
 		if (testMode)
 		{
 			let mailFolderPath = new MailFolderPath([
@@ -378,10 +417,14 @@ browser.runtime.onMessage.addListener(async (request) => {
 		}
 		else
 		{
-			let emailsGrouper = new EmailsGrouper(new MailFolderPath(["Local Folders", "arch", "test"]));
+			const mailMoveHandler = new MailMoveHandler();
+			const archiveRootPath = new MailFolderPath(["Local Folders", "arch", "test"]);
+			let emailsGrouper = new EmailsGrouper(archiveRootPath, mailMoveHandler);
 			const startDate : Date = new Date(request.startDate)
 			const endDate : Date = new Date(request.endDate)
-			return await emailsGrouper.moveEmails(startDate, endDate);
+			const dryRun: boolean = request.dryRun
+			console.log("dryRun = ", dryRun)
+			return await emailsGrouper.moveEmails(startDate, endDate, dryRun);
 		}
 	}
 });
