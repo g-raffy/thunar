@@ -38,19 +38,19 @@ class MailMoveHandler
 	{
 	}
 
-	onMailFolderMove(srcFolder: browser.folders.MailFolder, numMessagesMoved: number)
+	onMailFolderMove(srcFolder: browser.folders.MailFolder, numMessagesMoved: number, numMessagesInFolder: number)
 	{
-		browser.runtime.sendMessage({ type:"mail-folder-processed", srcFolder: srcFolder.path, dstFolder: "", numMailsMoved: numMessagesMoved });
+		browser.runtime.sendMessage({ type:"mail-folder-processed", srcFolder: srcFolder.path, dstFolder: "", numMailsMoved: numMessagesMoved, numMessagesInFolder: numMessagesInFolder});
 	}
 }
 
 
 async function getSubMailFolder(rootFolder: browser.folders.MailFolder, subPath: string[], createMissingFolders: boolean = false): Promise<browser.folders.MailFolder | null>
 {
-	console.log("getSubMailFolder: searching ", subPath, " in ", rootFolder.name, "subfolders")
+	// console.log("getSubMailFolder: searching ", subPath, " in ", rootFolder.name, "subfolders")
 	if (subPath.length === 0)
 	{
-		console.log("getSubMailFolder: rootFolder.path = ", rootFolder.path)
+		// console.log("getSubMailFolder: rootFolder.path = ", rootFolder.path)
 		return rootFolder;
 	}
 	else
@@ -85,14 +85,14 @@ async function getSubMailFolder(rootFolder: browser.folders.MailFolder, subPath:
 		{
 			subMailFolder = await getSubMailFolder(subMailFolder, subPath, createMissingFolders);
 		}
-		console.log("getSubMailFolder: subMailFolder.path = ", subMailFolder?.path)
+		// console.log("getSubMailFolder: subMailFolder.path = ", subMailFolder?.path)
 		return subMailFolder
 	}
 }
 
 async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFolders: boolean = false): Promise<browser.folders.MailFolder | null>
 {
-	console.log("getMailFolder: mailFolderAbsPath = ", mailFolderAbsPath)
+	// console.log("getMailFolder: mailFolderAbsPath = ", mailFolderAbsPath)
 	// mailFolderAbsPath: eg ["guillaume.raffy.work@gmail.com", "Inbox"]
 	let subPathParts: string[] = [...mailFolderAbsPath.getPathParts()]
 	let mailAccountName = subPathParts.shift();  // eg "guillaume.raffy.work@gmail.com"
@@ -116,7 +116,7 @@ async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFol
 	else
 	{
 		let firstFolderName: string = subPathParts.shift() as string;
-		console.log("getMailFolder: firstFolderName = ", firstFolderName)
+		// console.log("getMailFolder: firstFolderName = ", firstFolderName)
 		let targetFolder : browser.folders.MailFolder | null = null
 		if (targetMailAccount.folders)
 		{
@@ -125,7 +125,7 @@ async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFol
 			let folder : browser.folders.MailFolder
 			for (folder of targetMailAccount.folders)
 			{
-				console.log("getMailFolder: folder = ", folder.name)
+				// console.log("getMailFolder: folder = ", folder.name)
 				if (folder.name === firstFolderName){
 					targetFolder = folder;
 				}
@@ -187,7 +187,6 @@ async function getMailFolderAbsName(mailFolder: browser.folders.MailFolder): Pro
 	return folderAbsoluteName
 }
 
-
 class EmailsGrouper
 {
 	archiveRootFolderPath: MailFolderPath;  // eg ["LocalFolders", "arch", "test"]
@@ -241,9 +240,6 @@ class EmailsGrouper
 	async processFolder(srcFolder: browser.folders.MailFolder, archiveRootFolder: browser.folders.MailFolder, startDate: Date, endDate: Date, dryRun: boolean)
 	{
 		console.log("processFolder: moving ", srcFolder.path, "'s messages")
-
-		let messages: browser.messages.MessageList = await browser.messages.list(srcFolder);
-
 		// Convert the date range to timestamps
 		const startTimestamp = startDate.getTime();
 		const endTimestamp = endDate.getTime();
@@ -254,17 +250,43 @@ class EmailsGrouper
 			throw new Error("startDate (" + startDate + ") and endDate (" + endDate + ") are expected to have the same year");
 		}
 
+		// from [https://webextension-api.thunderbird.net/en/latest/examples/messageLists.html]
+		// Mail folders could contain a lot of messages: thousands, tens of thousands, or even hundreds of thousands.
+
+		// It would be a very bad idea to deal with that many messages at once, so the WebExtensions APIs split any response that could contain many messages into pages (or chunks). The default size of each page is 100 messages, although this could change and you must not rely on that number.
+
+		// Each page is an object with two properties: id, and messages. To get the next page, call continueList(messageListId) with the id property as an argument:
+
+		let numMessagesInFolder: number = 0
+		let msgHeaders: browser.messages.MessageHeader[] = [];
+
+		let msgPage: browser.messages.MessageList = await browser.messages.list(srcFolder);
+		numMessagesInFolder += msgPage.messages.length
+
 		// Filter messages by date range
-		// let messagesToMove = messages.messages.filter(msg => {
-		// 	let messageDate = new Date(msg.date).getTime();
-		// 	return messageDate >= startTimestamp && messageDate <= endTimestamp;
-		// });
+		let pageMessagesToMove = msgPage.messages.filter(msg => {
+			let messageDate = new Date(msg.date).getTime();
+			return messageDate >= startTimestamp && messageDate <= endTimestamp;
+			});
 
-		let messagesToMove = messages.messages.filter(msg => {
-			return true;
-		});
 
-		if (messagesToMove.length === 0)
+		msgHeaders.push(...pageMessagesToMove)
+
+		// at this point, browser.messages.list only retrieved at most 100 messages (ie msgPage.messages.length() <= 100). we need to retreive the remaining messages using browser.messages.continueList
+		// nb: browser.messages.list and browser.messages.continueList always return the same msgPage.id (which is a uuid string) for the same MailFolder. In other words, for each browser.messages.list and its related browser.messages.continueList calls, the returnes msgPage.id is always the same. msgPage.id becomes null to indicite that all messages of the list have been retrieved and therefore that browser.messages.continueList doesn't to be called again (it wouldn't work anyway because it wouldn't receive a list identifier).
+		while (msgPage.id)
+		{
+			msgPage = await browser.messages.continueList(msgPage.id);
+			numMessagesInFolder += msgPage.messages.length
+
+			let pageMessagesToMove = msgPage.messages.filter(msg => {
+				let messageDate = new Date(msg.date).getTime();
+				return messageDate >= startTimestamp && messageDate <= endTimestamp;
+				});
+			msgHeaders.push(...pageMessagesToMove)
+		}
+
+		if (msgHeaders.length === 0)
 		{
 			console.log("No messages found in the specified date range.");
 		}
@@ -272,19 +294,19 @@ class EmailsGrouper
 		{
 			const targetFolder = await EmailsGrouper.ensureArchiveFolderExists(srcFolder, archiveRootFolder, archiveYear)
 			// Move the filtered messages to the target folder
-			let messageIds = messagesToMove.map(msg => msg.id);
+			let messageIds = msgHeaders.map(msg => msg.date);
 			if (dryRun)
 			{
-				console.log('would move messages ' + messageIds + ' to folder ' + targetFolder.path)
+				console.log('would move ' + messageIds.length + '/' + numMessagesInFolder + ' messages to folder ' + targetFolder.path + '( message ids: ' + messageIds + ')')
 			}
 			else
 			{
-				console.log('moving messages ' + messageIds + ' to folder ' + targetFolder.path)
+				console.log('moving ' + messageIds.length + '/' + numMessagesInFolder + ' messages ' + messageIds + ' to folder ' + targetFolder.path + '( message ids: ' + messageIds + ')')
 				// await browser.messages.move(messageIds, targetFolder);
 			}
 		}
 
-		this.mailMoveHandler.onMailFolderMove(srcFolder, messagesToMove.length)
+		this.mailMoveHandler.onMailFolderMove(srcFolder, msgHeaders.length, numMessagesInFolder)
 
 		console.log("processing", srcFolder.path, "'s subfolders")
 

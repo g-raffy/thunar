@@ -1,8 +1,8 @@
-function onMailFolderMoved(srcFolder: string, dstFolder: string, numMailsMoved: number)
+function onMailFolderMoved(srcFolder: string, dstFolder: string, numMailsMoved: number, numMessagesInFolder: number)
 {
 	console.log("onMailFolderMoved: srcFolder =" + srcFolder);
 
-	let mailFoldersTable = document.getElementById("prout") as HTMLElement;
+	let mailFoldersTable = document.getElementById("processed-email-folders") as HTMLElement;
 	console.log("mailFoldersTable = ", mailFoldersTable)
 
 	let row: HTMLElement = document.createElement('tr') as HTMLTableRowElement
@@ -15,7 +15,7 @@ function onMailFolderMoved(srcFolder: string, dstFolder: string, numMailsMoved: 
 	row.appendChild(dstFolderCell)
 
 	let numMessagesCell = document.createElement('td') as HTMLTableCellElement;
-	numMessagesCell.textContent = numMailsMoved.toString();
+	numMessagesCell.textContent = numMailsMoved.toString() + "/" + numMessagesInFolder.toString();
 	row.appendChild(numMessagesCell)
 
 	mailFoldersTable.appendChild(row)
@@ -60,7 +60,7 @@ function onMessage(message: any): boolean
 		console.log("onMessage: message.type =" + message.type);
 		if (message.type === 'mail-folder-processed')
 		{
-			onMailFolderMoved(message.srcFolder, message.dstFolder, message.numMailsMoved);
+			onMailFolderMoved(message.srcFolder, message.dstFolder, message.numMailsMoved, message.numMessagesInFolder);
 			return true;
 		}
 	}
