@@ -1,9 +1,9 @@
 function onMailFolderMoved(srcFolder: string, dstFolder: string, numMailsMoved: number, numMessagesInFolder: number)
 {
-	console.log("onMailFolderMoved: srcFolder =" + srcFolder);
+	// console.log("onMailFolderMoved: srcFolder =" + srcFolder);
 
 	let mailFoldersTable = document.getElementById("processed-email-folders") as HTMLElement;
-	console.log("mailFoldersTable = ", mailFoldersTable)
+	// console.log("mailFoldersTable = ", mailFoldersTable)
 
 	let row: HTMLElement = document.createElement('tr') as HTMLTableRowElement
 	let srcFolderCell = document.createElement('td') as HTMLTableCellElement;
@@ -54,10 +54,10 @@ function onMailFolderMoved(srcFolder: string, dstFolder: string, numMailsMoved: 
 
 function onMessage(message: any): boolean
 {
-	console.log("onMessage:");
+	// console.log("onMessage:");
 	if (message.type)
 	{
-		console.log("onMessage: message.type =" + message.type);
+		// console.log("onMessage: message.type =" + message.type);
 		if (message.type === 'mail-folder-processed')
 		{
 			onMailFolderMoved(message.srcFolder, message.dstFolder, message.numMailsMoved, message.numMessagesInFolder);

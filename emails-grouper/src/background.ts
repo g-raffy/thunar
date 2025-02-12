@@ -90,7 +90,7 @@ async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFol
 	let targetMailAccount: browser.accounts.MailAccount | null = null;
 	for(let mailAccount of mailAccounts)
 	{
-		console.log("getMailFolder: mailAccount = ", mailAccount.name)
+		// console.log("getMailFolder: mailAccount = ", mailAccount.name)
 		if (mailAccount.name == mailAccountName)
 		{
 			targetMailAccount = mailAccount;
@@ -136,7 +136,7 @@ async function getMailFolder(mailFolderAbsPath: MailFolderPath, createMissingFol
 			mailFolder = await getSubMailFolder(new MyMailFolder(targetFolder), subPathParts, createMissingFolders);
 		}
 	}
-	console.log("getMailFolder: mailFolder.path = ", mailFolder?.thunMailFolder.path)
+	// console.log("getMailFolder: mailFolder.path = ", mailFolder?.thunMailFolder.path)
 	return mailFolder;
 }
 
@@ -221,12 +221,30 @@ class EmailsGrouper
 {
 	archiveRootFolderPath: MailFolderPath;  // eg ["LocalFolders", "arch", "test"]
 	mailMoveHandler: MailMoveHandler;
-
+	archivableEmailAccounts: string[];
+	ignoredMailFolders: string[];
 
 	constructor(archiveRootFolderPath: MailFolderPath, mailMoveHandler: MailMoveHandler)
 	{
 		this.archiveRootFolderPath = archiveRootFolderPath;
 		this.mailMoveHandler = mailMoveHandler;
+		this.archivableEmailAccounts = [
+			// "guillaume.raffy@univ-rennes1.fr",
+			"guillaume.raffy.work@gmail.com",
+			// "guillaume.raffy@hotmail.com",
+			// "website@melting-notes.com",
+			// "ggjj.raffy@gmail.com",
+			// "doraemon.seibyou@gmail.com",
+			// "Local Folders",
+			// "Blogs & News Feeds",
+		]
+		this.ignoredMailFolders = [
+			"guillaume.raffy.work@gmail.com/[Gmail]/All Mail",  // this contains duplicates of other folders, as stated by 
+			// [https://support.mozilla.org/en-US/kb/thunderbird-and-gmail]
+			// 	> - All Mail: contains all the messages of your Gmail account, including sent and archived messages. Any messages that you see in the inbox will also appear in the [Gmail]/All Mail folder. (It is recommended to unsubscribe this folder.)
+			"guillaume.raffy.work@gmail.com/[Gmail]/Drafts",
+			"guillaume.raffy.work@gmail.com/[Gmail]/Bin"
+		]
 	}
 
 	async getArchiveRootFolder(): Promise<MyMailFolder>
@@ -243,9 +261,9 @@ class EmailsGrouper
 
 		// result : the mail folder to use to archive srcFolder's messages, eg "/arch/test/2022/Inbox"
 
-		console.log('ensureArchiveFolderExists: srcFolder.path = ' + srcFolder.thunMailFolder.path)
-		console.log('ensureArchiveFolderExists: archiveRootFolder.path = ' + archiveRootFolder.thunMailFolder.path)
-		console.log('ensureArchiveFolderExists: year = ' + year)
+		// console.log('ensureArchiveFolderExists: srcFolder.path = ' + srcFolder.thunMailFolder.path)
+		// console.log('ensureArchiveFolderExists: archiveRootFolder.path = ' + archiveRootFolder.thunMailFolder.path)
+		// console.log('ensureArchiveFolderExists: year = ' + year)
 
 		const srcFolderAbsName: MailFolderPath = await srcFolder.asAbsPath();  // eg [ "guillaume.raffy@univ-rennes1.fr", "Inbox"]
 		let archivePath: MailFolderPath = await archiveRootFolder.asAbsPath();  // eg [ "Local Folders", "arch", "test"]
@@ -256,7 +274,7 @@ class EmailsGrouper
 		}
 
 		// at this point, archivePath should look like [ "Local Folders", "arch", "test", "2022", "guillaume.raffy@univ-rennes1.fr", "Inbox"]
-		console.log('ensureArchiveFolderExists: archivePath = ' + archivePath)
+		// console.log('ensureArchiveFolderExists: archivePath = ' + archivePath)
 
 		const testModeIsOn = false;
 		if (testModeIsOn)
@@ -269,7 +287,14 @@ class EmailsGrouper
 
 	async processFolder(srcFolder: MyMailFolder, archiveRootFolder: MyMailFolder, startDate: Date, endDate: Date, dryRun: boolean)
 	{
-		console.log("processFolder: moving ", srcFolder.thunMailFolder.path, "'s messages")
+		// console.log("processFolder : processing folder path = " + srcFolder.thunMailFolder.path + ", name = " + srcFolder.thunMailFolder.name);
+		const srcFolderId: string = await srcFolder.asIdString()
+		if (this.ignoredMailFolders.includes(srcFolderId))
+		{
+			console.log("ignoring " + srcFolderId + " because it's in the ignore list");
+			return;
+		}
+
 		// Convert the date range to timestamps
 		const startTimestamp = startDate.getTime();
 		const endTimestamp = endDate.getTime();
@@ -318,7 +343,7 @@ class EmailsGrouper
 
 		if (msgHeaders.length === 0)
 		{
-			console.log("No messages found in the specified date range.");
+			// console.log("No messages found in the specified date range.");
 		}
 		else
 		{
@@ -338,17 +363,19 @@ class EmailsGrouper
 
 		await this.mailMoveHandler.onMailFolderMove(srcFolder, msgHeaders.length, numMessagesInFolder)
 
-		console.log("processing", srcFolder.thunMailFolder.path, "'s subfolders")
+		console.log("processFolder: processed " + msgHeaders.length + "/" + numMessagesInFolder + ' messages from ' + await srcFolder.asIdString() + " (thunderbird name = " + srcFolder.thunMailFolder.name + ")");
+
+		// console.log("processing", srcFolder.thunMailFolder.path, "'s subfolders")
 
 		if (srcFolder.thunMailFolder.subFolders)
 		{
 			let subFolder : browser.folders.MailFolder;
 			for (subFolder of srcFolder.thunMailFolder.subFolders)
 			{
-				console.log("processFolder: subFolder.path = ", subFolder.path, " (archiveRootFolder.path = "+ archiveRootFolder.thunMailFolder.path + ")")
+				// console.log("processFolder: subFolder.path = ", subFolder.path, " (archiveRootFolder.path = "+ archiveRootFolder.thunMailFolder.path + ")")
 				if (subFolder.path !== archiveRootFolder.thunMailFolder.path)
 				{
-					console.log("processing subFolder.path " + subFolder.path + " != " + archiveRootFolder.thunMailFolder.path)
+					// console.log("processing subFolder.path " + subFolder.path + " != " + archiveRootFolder.thunMailFolder.path)
 					this.processFolder(new MyMailFolder(subFolder), archiveRootFolder, startDate, endDate, dryRun);
 				}
 			}
@@ -360,18 +387,12 @@ class EmailsGrouper
 	{
 		const archiveRootFolder: MyMailFolder = await this.getArchiveRootFolder()
 		console.log("archiveRootFolder.path = " + archiveRootFolder.thunMailFolder.path);
-
-		const archivable_email_accounts = [
-			"guillaume.raffy@univ-rennes1.fr",
-			// "guillaume.raffy.work@gmail.com",
-			//"Local Folders"
-		]
 		
 		let mail_accounts = await browser.accounts.list();
 		for (let mail_account_index in mail_accounts)
 		{
 			let mail_account: browser.accounts.MailAccount = mail_accounts[mail_account_index]; // You can adjust which account to use
-			if (archivable_email_accounts.includes(mail_account.name))
+			if (this.archivableEmailAccounts.includes(mail_account.name))
 			{
 				let rootFolder : browser.folders.MailFolder | undefined = mail_account.rootFolder
 				console.log("account = " + mail_account);
@@ -386,9 +407,6 @@ class EmailsGrouper
 					let folder : browser.folders.MailFolder
 					for (folder of mail_account.folders)
 					{
-						console.log("folder.id = " + folder.id);
-						console.log("folder.path = " + folder.path);
-						console.log("folder.name = " + folder.name);
 						if (folder.path !== archiveRootFolder.thunMailFolder.path)
 						{
 							await this.processFolder(new MyMailFolder(folder), archiveRootFolder, startDate, endDate, dryRun)
