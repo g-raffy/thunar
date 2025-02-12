@@ -349,15 +349,16 @@ class EmailsGrouper
 		{
 			const targetFolder = await EmailsGrouper.ensureArchiveFolderExists(srcFolder, archiveRootFolder, archiveYear)
 			// Move the filtered messages to the target folder
-			let messageIds = msgHeaders.map(msg => msg.date);
+			let messageIds = msgHeaders.map(msg => msg.id);
+			let messageDates = msgHeaders.map(msg => msg.date);
 			if (dryRun)
 			{
-				console.log('would move ' + messageIds.length + '/' + numMessagesInFolder + ' messages to folder ' + targetFolder.thunMailFolder.path + '( message ids: ' + messageIds + ')')
+				console.log('would move ' + messageIds.length + '/' + numMessagesInFolder + ' messages to folder ' + targetFolder.thunMailFolder.path + '( message dates: ' + messageDates + ')')
 			}
 			else
 			{
-				console.log('moving ' + messageIds.length + '/' + numMessagesInFolder + ' messages ' + messageIds + ' to folder ' + targetFolder.thunMailFolder.path + '( message ids: ' + messageIds + ')')
-				// await browser.messages.move(messageIds, targetFolder);
+				console.log('moving ' + messageIds.length + '/' + numMessagesInFolder + ' messages ' + messageIds + ' to folder ' + targetFolder.thunMailFolder.path + '( message dates: ' + messageDates + ')')
+				await browser.messages.move(messageIds, targetFolder.thunMailFolder);
 			}
 		}
 
@@ -488,7 +489,7 @@ browser.runtime.onMessage.addListener(async (request) => {
 		else
 		{
 			const mailMoveHandler = new MailMoveHandler();
-			const archiveRootPath = new MailFolderPath(["Local Folders", "arch", "test"]);
+			const archiveRootPath = new MailFolderPath(["Local Folders", "arch"]);
 			let emailsGrouper = new EmailsGrouper(archiveRootPath, mailMoveHandler);
 			const startDate : Date = new Date(request.startDate)
 			const endDate : Date = new Date(request.endDate)

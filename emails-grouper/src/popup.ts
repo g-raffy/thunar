@@ -85,8 +85,9 @@ document.getElementById("move-form")?.addEventListener("submit", async function 
 	// 	return;
 	// }
 
-	const dryRun = (document.getElementById("dry-run") as HTMLFormElement).value;
+	const dryRun = (document.getElementById("dry-run") as HTMLFormElement).checked;
 
+	console.log("dryRun = " + dryRun)
 	console.log("on move-form submit: calling moveEmails")
 
 	// Send the date range to the background script
